@@ -1,8 +1,6 @@
 /// <reference types="msw/vite/client" />
 
 export async function startBackend() {
-  if (!import.meta.env.DEV) return
-
   const { network } = await import("virtual:msw")
   const { services } = await import("./services.ts")
 
