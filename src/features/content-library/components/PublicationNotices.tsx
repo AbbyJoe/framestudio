@@ -45,12 +45,21 @@ export function PublicationNoticeBanner({ notice, onDismiss, onCheckAgain }: Pub
         </Notice>
       )
 
-    // Scenario B, step 1: no reply arrived. Ask the server before saying anything.
+    // Scenario B: no reply arrived. Tell the operator; a silent refetch runs in the background.
+    case "unknown":
+      return (
+        <Notice tone="warning" busy title="Couldn't confirm whether the change was saved">
+          {notice.message} We're checking the latest status with the server. The status below won't
+          change until we know.
+        </Notice>
+      )
+
+    // Explicit "Check again" — operator-triggered confirm in progress.
     case "checking":
       return (
         <Notice tone="info" busy title="Confirming publication status">
-          We couldn't confirm whether your change was saved. We're checking the latest status with
-          the server. The status below won't change until we know.
+          We're checking the latest status with the server. The status below won't change until we
+          know.
         </Notice>
       )
 

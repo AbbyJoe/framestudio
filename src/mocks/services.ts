@@ -67,10 +67,12 @@ export const services = [
   graphqlApi.query("Content", ({ variables }) => {
     const videoId = textOrNothing(variables.id)
     const video = videoId ? findVideoById(videoId) : null
+
     return HttpResponse.json({
       data: { content: video ? toApiVideo(video) : null },
     })
   }),
+  
   graphqlApi.mutation("SetPublication", ({ variables }) => {
     const videoId = textOrNothing(variables.id)
     const shouldBePublished = variables.published

@@ -15,6 +15,9 @@ import { videoFields } from "../../../graphql/videoFields.ts"
 export type PublicationNotice =
   | { kind: "saved"; status: ContentStatus }
   | { kind: "conflict"; previousStatus: ContentStatus; currentStatus: ContentStatus; message: string }
+  /** Reply never arrived — tell the operator, then reconcile in the background. */
+  | { kind: "unknown"; message: string }
+  /** Operator asked to check again — show that a confirm is in progress. */
   | { kind: "checking" }
   | { kind: "confirmed"; status: ContentStatus }
   | { kind: "unconfirmed" }
@@ -25,16 +28,19 @@ export type PublicationNotice =
  *
  * - Success: Apollo writes the returned video into its cache, so every screen shows the new status.
  * - Rejected (Scenario A): the server sends back the video's real status. We show it and explain.
- * - No reply (Scenario B): we don't know if it saved, so we ask the server instead of guessing.
+ * - No reply (Scenario B): show an unknown notice, then silently ask the server for the real status.
  */
 export function usePublication(content: Content) {
   const apolloClient = useApolloClient()
   const [sendPublicationChange, { loading: isSaving }] = useMutation(changePublicationMutation)
   const [notice, setNotice] = useState<PublicationNotice | null>(null)
 
-  /** Asks the server for the video's real status. Used when a reply never arrived. */
-  async function checkLatestStatus() {
-    setNotice({ kind: "checking" })
+  /**
+   * Asks the server for the video's real status.
+   * `silent` keeps the current notice (e.g. unknown) instead of swapping to "checking".
+   */
+  async function checkLatestStatus(options?: { silent?: boolean }) {
+    if (!options?.silent) setNotice({ kind: "checking" })
 
     try {
       // A one-off query, so a failure here doesn't wipe the status already on screen.
@@ -82,7 +88,9 @@ export function usePublication(content: Content) {
           message: reply.message,
         })
       } else if (reply.result === "unknown") {
-        await checkLatestStatus()
+        // Tell the operator first; reconcile without replacing that notice with "checking".
+        setNotice({ kind: "unknown", message: reply.message })
+        void checkLatestStatus({ silent: true })
       } else {
         setNotice({ kind: "failed", message: reply.message })
       }
@@ -102,10 +110,11 @@ export function usePublication(content: Content) {
   return {
     notice,
     isSaving,
-    isChecking: notice?.kind === "checking",
+    // Pause actions while unknown is up (silent refetch) or while an explicit check runs.
+    isChecking: notice?.kind === "checking" || notice?.kind === "unknown",
     isUnconfirmed: notice?.kind === "unconfirmed",
     updatePublication,
-    checkLatestStatus,
+    checkLatestStatus: () => checkLatestStatus(),
     dismissNotice: () => setNotice(null),
   }
 }
